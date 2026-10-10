@@ -49,7 +49,7 @@
     <!-- Drop Zone -->
     <div id="dropZone" onclick="document.getElementById('fileInput').click()" 
          class="border-2 border-dashed border-gray-700 hover:border-emerald-500 bg-gray-900/40 rounded-3xl p-6 md:p-8 text-center cursor-pointer transition flex flex-col items-center gap-3 group">
-      <input type="file" id="fileInput" accept="image/*" multiple class="hidden" onchange="handleFileSelect(event)">
+      <input type="file" id="fileInput" accept="image/*,capture=camera" multiple class="hidden" onchange="handleFileSelect(event)">
       <div class="w-14 h-14 rounded-2xl bg-gray-800 text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-110 transition shadow-inner">
         <i class="fas fa-camera-rotate animate-pulse"></i>
       </div>
@@ -173,17 +173,7 @@
     let rawFiles = [];
     let processedImages = [];
     let activeImageDimensions = { width: 0, height: 0, ratio: 1 };
-    let currentGenId = 0; // معرّف المعالجة لمنع تداخل العمليات المتزامنة
-
-    function esc(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
+    let currentGenId = 0;
 
     function formatBytes(bytes) {
       if (!bytes || bytes === 0) return '0 B';
@@ -219,7 +209,6 @@
     function handleRatioCheckboxChange() {
       const keepRatio = document.getElementById('keepRatio').checked;
       if (keepRatio && activeImageDimensions.width) {
-        // إعادة ملائمة الارتفاع بناءً على العرض الحالي بالنسبة الأصلية لضمان عدم حدوث تمديد مفاجئ
         const wInput = document.getElementById('customWidth');
         const hInput = document.getElementById('customHeight');
         if (wInput.value) {
@@ -238,41 +227,44 @@
       processedImages = [];
     }
 
+    // التحقق المرن لدعم صور الكاميرا أياً كان نوعها المرسل من نظام الهاتف
+    function isValidImageFile(file) {
+      if (!file) return false;
+      if (file.type && file.type.startsWith('image/')) return true;
+      const name = (file.name || '').toLowerCase();
+      return /\.(jpg|jpeg|png|webp|gif|bmp|heic|heif|avif|tiff|dng)$/i.test(name) || !file.type;
+    }
+
     function handleFileSelect(event) {
       const files = Array.from(event.target.files || []);
       if (!files.length) return;
 
-      // تصفير ملفات المعالجة السابقة مع تحرير الذاكرة
       clearRevokeUrls();
       rawFiles = files;
       
       const file = files[0];
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          activeImageDimensions.width = img.width;
-          activeImageDimensions.height = img.height;
-          activeImageDimensions.ratio = img.width / img.height;
-          
-          if(document.getElementById('presetSelect').value === 'original') {
-            document.getElementById('customWidth').value = img.width;
-            document.getElementById('customHeight').value = img.height;
-          }
-          processImages();
-        };
-        img.onerror = () => {
-          console.warn("تنبيه: تعذر قراءة المعاينة، سيتم التحويل والضغط مباشرة.");
-          activeImageDimensions = { width: 1920, height: 1080, ratio: 16/9 }; // افتراضي في حالة تعذر القراءة
-          processImages();
-        };
-        img.src = e.target.result;
-      };
-      reader.onerror = () => {
-        console.error("فشل قراءة الملف.");
+      const tempUrl = URL.createObjectURL(file);
+      const img = new Image();
+      
+      img.onload = () => {
+        activeImageDimensions.width = img.naturalWidth || img.width;
+        activeImageDimensions.height = img.naturalHeight || img.height;
+        activeImageDimensions.ratio = activeImageDimensions.width / activeImageDimensions.height;
+        
+        if (document.getElementById('presetSelect').value === 'original') {
+          document.getElementById('customWidth').value = activeImageDimensions.width;
+          document.getElementById('customHeight').value = activeImageDimensions.height;
+        }
+        URL.revokeObjectURL(tempUrl);
         processImages();
       };
-      reader.readAsDataURL(file);
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(tempUrl);
+        processImages();
+      };
+      
+      img.src = tempUrl;
     }
 
     function applyPreset(value) {
@@ -281,7 +273,7 @@
       const keepRatio = document.getElementById('keepRatio').checked;
 
       if (value === 'original') {
-        if(rawFiles.length && activeImageDimensions.width) {
+        if (rawFiles.length && activeImageDimensions.width) {
           wInput.value = activeImageDimensions.width;
           hInput.value = activeImageDimensions.height;
         } else {
@@ -291,7 +283,6 @@
       } else {
         const [targetW, targetH] = value.split('x').map(Number);
         if (keepRatio && activeImageDimensions.width) {
-          // الحساب المتناسق: احتواء الصورة داخل الإبعاد (Contain) لكي لا يحدث تمديد أو تمدد بالارتفاع
           const scale = Math.min(targetW / activeImageDimensions.width, targetH / activeImageDimensions.height);
           wInput.value = Math.round(activeImageDimensions.width * scale);
           hInput.value = Math.round(activeImageDimensions.height * scale);
@@ -355,12 +346,10 @@
       loader.appendChild(statusText);
       container.appendChild(loader);
 
-      // تفريغ روابط معالجات سابقة
       clearRevokeUrls();
       const localProcessed = [];
 
       for (let file of rawFiles) {
-        // التأكد من أن هذه الدورة ما زالت صالحة ولم يتم استبدالها بدورة جديدة
         if (thisGenId !== currentGenId) return;
 
         const compressed = await compressAndResizeImage(file, format, quality, targetWidth, targetHeight);
@@ -400,83 +389,90 @@
 
     function compressAndResizeImage(file, format, quality, targetWidth, targetHeight) {
       return new Promise((resolve) => {
-        if (!file || !file.type.startsWith('image/')) {
+        if (!isValidImageFile(file)) {
           resolve(null);
           return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = () => {
-            try {
-              const canvas = document.createElement('canvas');
-              
-              let newWidth = targetWidth || img.width;
-              let newHeight = targetHeight || img.height;
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
 
-              // معالجة الصور ذات الدقة الكبيرة لمنع استنزاف ذاكرة الهاتف
-              const maxDimension = 6500;
-              if (newWidth > maxDimension || newHeight > maxDimension) {
-                const scalingFactor = maxDimension / Math.max(newWidth, newHeight);
-                newWidth = Math.round(newWidth * scalingFactor);
-                newHeight = Math.round(newHeight * scalingFactor);
-              }
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const naturalW = img.naturalWidth || img.width;
+            const naturalH = img.naturalHeight || img.height;
+            
+            let newWidth = targetWidth || naturalW;
+            let newHeight = targetHeight || naturalH;
 
-              if (newWidth <= 0) newWidth = 1;
-              if (newHeight <= 0) newHeight = 1;
-
-              canvas.width = newWidth;
-              canvas.height = newHeight;
-              
-              const ctx = canvas.getContext('2d');
-              
-              // ملء الخلفية الشفافة باللون الأبيض عند التحويل لـ JPEG
-              if (format === 'image/jpeg') {
-                ctx.fillStyle = '#FFFFFF';
-                ctx.fillRect(0, 0, newWidth, newHeight);
-              }
-
-              ctx.imageSmoothingEnabled = true;
-              ctx.imageSmoothingQuality = 'high';
-              ctx.drawImage(img, 0, 0, newWidth, newHeight);
-
-              const q = format === 'image/png' ? undefined : quality;
-
-              canvas.toBlob((blob) => {
-                if (!blob) {
-                  resolve(null);
-                  return;
-                }
-                const ext = format === 'image/webp' ? 'webp' : (format === 'image/jpeg' ? 'jpg' : 'png');
-                const baseName = file.name ? (file.name.substring(0, file.name.lastIndexOf('.')) || "photo") : "photo";
-                const newFileName = `${baseName}-opti.${ext}`;
-                const savedPct = Math.round(((file.size - blob.size) / file.size) * 100);
-
-                resolve({
-                  originalName: file.name || "كاميرا الهاتف",
-                  originalSize: file.size,
-                  originalWidth: img.width,
-                  originalHeight: img.height,
-                  newWidth: newWidth,
-                  newHeight: newHeight,
-                  newSize: blob.size,
-                  savedPct: savedPct,
-                  blob: blob,
-                  downloadName: newFileName,
-                  url: URL.createObjectURL(blob)
-                });
-              }, format, q);
-            } catch (err) {
-              console.error("خطأ Canvas:", err);
-              resolve(null);
+            // حماية ذاكرة الهاتف من الانهيار عند التعامل مع دقات الكاميرا الخارقة
+            const maxDimension = 5000;
+            if (newWidth > maxDimension || newHeight > maxDimension) {
+              const scalingFactor = maxDimension / Math.max(newWidth, newHeight);
+              newWidth = Math.round(newWidth * scalingFactor);
+              newHeight = Math.round(newHeight * scalingFactor);
             }
-          };
-          img.onerror = () => resolve(null);
-          img.src = e.target.result;
+
+            if (newWidth <= 0) newWidth = 1;
+            if (newHeight <= 0) newHeight = 1;
+
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+            
+            const ctx = canvas.getContext('2d');
+            
+            if (format === 'image/jpeg') {
+              ctx.fillStyle = '#FFFFFF';
+              ctx.fillRect(0, 0, newWidth, newHeight);
+            }
+
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+            const q = format === 'image/png' ? undefined : quality;
+
+            canvas.toBlob((blob) => {
+              URL.revokeObjectURL(objectUrl);
+              
+              if (!blob) {
+                resolve(null);
+                return;
+              }
+
+              const ext = format === 'image/webp' ? 'webp' : (format === 'image/jpeg' ? 'jpg' : 'png');
+              const baseName = file.name ? (file.name.substring(0, file.name.lastIndexOf('.')) || "photo") : "photo";
+              const newFileName = `${baseName}-opti.${ext}`;
+              const savedPct = Math.round(((file.size - blob.size) / file.size) * 100);
+
+              resolve({
+                originalName: file.name || "كاميرا الهاتف",
+                originalSize: file.size,
+                originalWidth: naturalW,
+                originalHeight: naturalH,
+                newWidth: newWidth,
+                newHeight: newHeight,
+                newSize: blob.size,
+                savedPct: savedPct,
+                blob: blob,
+                downloadName: newFileName,
+                url: URL.createObjectURL(blob)
+              });
+            }, format, q);
+          } catch (err) {
+            URL.revokeObjectURL(objectUrl);
+            console.error("خطأ Canvas:", err);
+            resolve(null);
+          }
         };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(file);
+
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(null);
+        };
+
+        img.src = objectUrl;
       });
     }
 
@@ -572,7 +568,6 @@
 
       try {
         if (processedImages.length === 1) {
-          // إذا كان ملفاً واحداً يتم تحميله مباشرة بالطريقة القياسية
           const item = processedImages[0];
           const a = document.createElement('a');
           a.href = item.url;
@@ -581,7 +576,6 @@
           a.click();
           document.body.removeChild(a);
         } else {
-          // استخدام JSZip لتوليد أرشيف ZIP حقيقي في المتصفح وتجنب تجميد التنزيلات المتزامنة على الجوال
           const zip = new JSZip();
           processedImages.forEach((item) => {
             zip.file(item.downloadName, item.blob);
@@ -597,7 +591,6 @@
           a.click();
           document.body.removeChild(a);
 
-          // تحرير رابط الـ zip لمنع تضخم الذاكرة
           setTimeout(() => URL.revokeObjectURL(zipUrl), 15000);
         }
       } catch (err) {
