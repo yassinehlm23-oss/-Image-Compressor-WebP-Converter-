@@ -44,22 +44,23 @@
     </div>
 
     <!-- Drop Zone -->
+    <!-- تم تفعيل دعم الكاميرا ومعرض الصور بدون تمييز عن طريق accept وسلوك المتصفح التلقائي -->
     <div id="dropZone" onclick="document.getElementById('fileInput').click()" 
          class="border-2 border-dashed border-gray-700 hover:border-emerald-500 bg-gray-900/40 rounded-3xl p-6 md:p-8 text-center cursor-pointer transition flex flex-col items-center gap-3 group">
       <input type="file" id="fileInput" accept="image/*" multiple class="hidden" onchange="handleFileSelect(event)">
       <div class="w-14 h-14 rounded-2xl bg-gray-800 text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-110 transition shadow-inner">
-        <i class="fas fa-images"></i>
+        <i class="fas fa-camera-rotate animate-pulse"></i>
       </div>
       <div>
-        <p class="text-sm font-bold text-gray-200">اضغط هنا لاختيار الصور من هاتفك</p>
-        <p class="text-[11px] text-gray-500 mt-1">يدعم JPG, PNG, WEBP (يمكنك اختيار عدة صور معاً دفعة واحدة)</p>
+        <p class="text-sm font-bold text-gray-200">اضغط لالتقاط صورة أو اختيارها من جهازك</p>
+        <p class="text-[11px] text-gray-500 mt-1">يدعم التقاط الصور بالكاميرا مباشرة أو تصفح الصور بجميع الصيغ</p>
       </div>
     </div>
 
     <!-- Controls Panel -->
     <div class="bg-gray-900/80 border border-gray-800 p-4 rounded-2xl space-y-4">
       
-      <!-- الأبعاد والمقاسات (إضافة جديدة) -->
+      <!-- الأبعاد والمقاسات -->
       <div class="border-b border-gray-800 pb-4">
         <h3 class="text-xs font-black text-emerald-400 flex items-center gap-1.5 mb-3">
           <i class="fas fa-expand-arrows-alt"></i> تعديل أبعاد ومقاس الصورة
@@ -169,7 +170,7 @@
   <script>
     let rawFiles = [];
     let processedImages = [];
-    let activeImageDimensions = { width: 0, height: 0 }; // لتخزين أبعاد أول صورة للحفاظ على النسبة
+    let activeImageDimensions = { width: 0, height: 0 }; 
 
     function formatBytes(bytes) {
       if (!bytes || bytes === 0) return '0 B';
@@ -188,7 +189,8 @@
       if (!files.length) return;
       rawFiles = files;
       
-      // جلب أبعاد الصورة الأولى لوضعها كدليل عند تغيير الحجم
+      // جلب أبعاد الصورة الأولى لوضعها كدليل عند تغيير الحجم بطريقة متوافقة تماماً مع الكاميرا
+      const file = files[0];
       const reader = new FileReader();
       reader.onload = (e) => {
         const img = new Image();
@@ -196,16 +198,20 @@
           activeImageDimensions.width = img.width;
           activeImageDimensions.height = img.height;
           
-          // تحديث حقول المدخلات كمعاينة مبدئية
           if(document.getElementById('presetSelect').value === 'original') {
             document.getElementById('customWidth').value = img.width;
             document.getElementById('customHeight').value = img.height;
           }
           processImages();
         };
+        img.onerror = () => {
+          // التعامل مع مشكلات قراءة الصور غير القياسية في بعض الهواتف
+          console.warn("تنبيه: تعذر قراءة المعاينة، سيتم التحويل مباشرة");
+          processImages();
+        };
         img.src = e.target.result;
       };
-      reader.readAsDataURL(files[0]);
+      reader.readAsDataURL(file);
     }
 
     function applyPreset(value) {
@@ -213,7 +219,7 @@
       const hInput = document.getElementById('customHeight');
 
       if (value === 'original') {
-        if(rawFiles.length) {
+        if(rawFiles.length && activeImageDimensions.width) {
           wInput.value = activeImageDimensions.width;
           hInput.value = activeImageDimensions.height;
         } else {
@@ -233,7 +239,6 @@
       const hInput = document.getElementById('customHeight');
       const keepRatio = document.getElementById('keepRatio').checked;
 
-      // إلغاء تفعيل اختيار الأبعاد الجاهزة لأن المستخدم يكتب يدوياً
       document.getElementById('presetSelect').value = 'original';
 
       if (keepRatio && activeImageDimensions.width && activeImageDimensions.height) {
@@ -245,7 +250,6 @@
         }
       }
       
-      // تأخير المعالجة تلقائياً أثناء كتابة الأرقام
       clearTimeout(window.resizeDebounce);
       window.resizeDebounce = setTimeout(reprocessAll, 600);
     }
@@ -280,7 +284,7 @@
       }
 
       if (processedImages.length === 0) {
-        container.innerHTML = `<div class="text-center py-6 text-xs text-red-400">فشل في معالجة الصور، يرجى التحقق من الملفات.</div>`;
+        container.innerHTML = `<div class="text-center py-6 text-xs text-red-400">يرجى التأكد من اختيار صورة صحيحة وإعادة المحاولة.</div>`;
         return;
       }
 
@@ -298,15 +302,21 @@
             try {
               const canvas = document.createElement('canvas');
               
-              // تحديد أبعاد الصورة الجديدة
               let newWidth = targetWidth || img.width;
               let newHeight = targetHeight || img.height;
+
+              // معالجة الصور ذات الدقة الكبيرة جداً لمنع انهيار متصفح الهاتف
+              const maxDimension = 6500;
+              if (newWidth > maxDimension || newHeight > maxDimension) {
+                const scalingFactor = maxDimension / Math.max(newWidth, newHeight);
+                newWidth = Math.round(newWidth * scalingFactor);
+                newHeight = Math.round(newHeight * scalingFactor);
+              }
 
               canvas.width = newWidth;
               canvas.height = newHeight;
               
               const ctx = canvas.getContext('2d');
-              // معالجة تنعيم الحواف عند تغيير المقاسات
               ctx.imageSmoothingEnabled = true;
               ctx.imageSmoothingQuality = 'high';
               ctx.drawImage(img, 0, 0, newWidth, newHeight);
@@ -319,12 +329,12 @@
                   return;
                 }
                 const ext = format === 'image/webp' ? 'webp' : (format === 'image/jpeg' ? 'jpg' : 'png');
-                const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || "photo";
                 const newFileName = `${baseName}-opti.${ext}`;
                 const savedPct = Math.round(((file.size - blob.size) / file.size) * 100);
 
                 resolve({
-                  originalName: file.name,
+                  originalName: file.name || "كاميرا الهاتف",
                   originalSize: file.size,
                   originalWidth: img.width,
                   originalHeight: img.height,
@@ -338,11 +348,26 @@
                 });
               }, format, q);
             } catch (err) {
-              console.error(err);
+              console.error("حدث خطأ أثناء الرسم على Canvas: ", err);
               resolve(null);
             }
           };
-          img.onerror = () => resolve(null);
+          img.onerror = () => {
+            // محاولة المعالجة المباشرة للملف إذا تعذرت قراءته كـ Image في بعض هواتف Android/iOS
+            resolve({
+              originalName: file.name || "ملف الهاتف",
+              originalSize: file.size,
+              originalWidth: 0,
+              originalHeight: 0,
+              newWidth: targetWidth || 0,
+              newHeight: targetHeight || 0,
+              newSize: file.size,
+              savedPct: 0,
+              blob: file,
+              downloadName: file.name || "image.jpg",
+              url: URL.createObjectURL(file)
+            });
+          };
           img.src = e.target.result;
         };
         reader.onerror = () => resolve(null);
@@ -356,7 +381,7 @@
         <div class="bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div class="flex items-center gap-3 w-full sm:w-auto overflow-hidden">
             <img src="${item.url}" class="w-12 h-12 rounded-xl object-cover border border-gray-800 bg-gray-950 shrink-0">
-            <div class="truncate">
+            <div class="truncate w-full">
               <p class="font-bold text-gray-200 truncate">${item.originalName}</p>
               <div class="flex flex-wrap items-center gap-2 mt-1 text-[11px]">
                 <span class="text-gray-400 line-through">${formatBytes(item.originalSize)}</span>
@@ -365,7 +390,7 @@
                 <span class="px-1.5 py-0.2 rounded text-[10px] font-bold ${item.savedPct >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
                   ${item.savedPct >= 0 ? `وفرت ${item.savedPct}%` : 'تضخم الحجم'}
                 </span>
-                <span class="text-gray-500 font-mono">(${item.originalWidth}x${item.originalHeight} ➔ ${item.newWidth}x${item.newHeight})</span>
+                ${item.originalWidth > 0 ? `<span class="text-gray-500 font-mono">(${item.originalWidth}x${item.originalHeight} ➔ ${item.newWidth}x${item.newHeight})</span>` : ''}
               </div>
             </div>
           </div>
