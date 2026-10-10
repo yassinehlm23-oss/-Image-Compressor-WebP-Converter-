@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OptiPic | ضاغط ومحول صيغ الصور المجاني</title>
-  <meta name="description" content="أداة سريعة لضغط وتحويل الصور إلى صيغ WebP, JPG, PNG داخل المتصفح بدون رفع الملفات لأي خادم.">
+  <title>PicShrink | ضاغط ومحول صيغ وأبعاد الصور المجاني</title>
+  <meta name="description" content="أداة سريعة ومجانية لضغط الصور، تغيير أبعادها، وتحويل صيغها إلى WebP, JPG, PNG داخل المتصفح بأمان 100%.">
   
   <!-- Tailwind CSS & Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -13,19 +13,23 @@
   <!-- إعلان Adsterra رقم 1 (Popunder / Script) -->
   <script data-cfasync="false" src="https://bicea.org/14/ddeec1781bd6c9842deda4a337366a61"></script>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-sans">
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col font-sans selection:bg-emerald-500 selection:text-black">
 
   <!-- Header -->
   <header class="border-b border-gray-800 bg-gray-900/80 backdrop-blur sticky top-0 z-20 px-4 py-3">
     <div class="max-w-4xl mx-auto flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-          <i class="fas fa-file-image"></i>
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 text-black flex items-center justify-center font-black text-xl shadow-lg shadow-emerald-500/10">
+          <i class="fas fa-compress-arrows-alt text-base"></i>
         </div>
-        <span class="font-extrabold text-base md:text-lg text-white">OptiPic</span>
+        <div>
+          <span class="font-black text-lg md:text-xl tracking-tight text-white block">Pic<span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Shrink</span></span>
+          <span class="text-[9px] text-gray-400 font-semibold block -mt-1">ضاغط ومعدل الصور السريع</span>
+        </div>
       </div>
-      <span class="text-[11px] text-emerald-400 font-semibold bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-        معالجة فورية وآمنة 100%
+      <span class="text-[10px] md:text-xs text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        معالجة داخل جهازك (آمن 100%)
       </span>
     </div>
   </header>
@@ -35,41 +39,97 @@
 
     <!-- Hero Title -->
     <div class="text-center space-y-1">
-      <h1 class="text-xl md:text-2xl font-black text-white">ضاغط ومحول صيغ الصور المجاني</h1>
-      <p class="text-xs text-gray-400">قلل حجم صورك وحولها لصيغة WebP الحديثة بضغطة زر داخل جهازك مباشرة</p>
+      <h1 class="text-xl md:text-2xl font-black text-white">ضاغط ومغير أبعاد وصيغ الصور</h1>
+      <p class="text-xs text-gray-400">تحكم كامل في مقاسات وصيغ وحجم صورك دفعة واحدة وبثوانٍ معدودة</p>
     </div>
 
     <!-- Drop Zone -->
     <div id="dropZone" onclick="document.getElementById('fileInput').click()" 
-         class="border-2 border-dashed border-gray-700 hover:border-emerald-500 bg-gray-900/60 rounded-3xl p-6 md:p-8 text-center cursor-pointer transition flex flex-col items-center gap-3">
+         class="border-2 border-dashed border-gray-700 hover:border-emerald-500 bg-gray-900/40 rounded-3xl p-6 md:p-8 text-center cursor-pointer transition flex flex-col items-center gap-3 group">
       <input type="file" id="fileInput" accept="image/*" multiple class="hidden" onchange="handleFileSelect(event)">
-      <div class="w-14 h-14 rounded-2xl bg-gray-800 text-emerald-400 flex items-center justify-center text-2xl shadow-inner">
-        <i class="fas fa-cloud-arrow-up"></i>
+      <div class="w-14 h-14 rounded-2xl bg-gray-800 text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-110 transition shadow-inner">
+        <i class="fas fa-images"></i>
       </div>
       <div>
         <p class="text-sm font-bold text-gray-200">اضغط هنا لاختيار الصور من هاتفك</p>
-        <p class="text-[11px] text-gray-500 mt-1">يدعم JPG, PNG, WEBP (يمكنك اختيار عدة صور معاً)</p>
+        <p class="text-[11px] text-gray-500 mt-1">يدعم JPG, PNG, WEBP (يمكنك اختيار عدة صور معاً دفعة واحدة)</p>
       </div>
     </div>
 
-    <!-- Controls -->
-    <div class="bg-gray-900/80 border border-gray-800 p-4 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div>
-        <label class="text-xs font-semibold text-gray-300 block mb-2">صيغة التحويل المطلوبة:</label>
-        <select id="targetFormat" onchange="reprocessAll()" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
-          <option value="image/webp">WebP (أفضل ضغط وأعلى جودة - موصى بها)</option>
-          <option value="image/jpeg">JPG / JPEG (متوافق مع كل الأنظمة)</option>
-          <option value="image/png">PNG (جودة أصلية بدون فقدان للشفافية)</option>
-        </select>
+    <!-- Controls Panel -->
+    <div class="bg-gray-900/80 border border-gray-800 p-4 rounded-2xl space-y-4">
+      
+      <!-- الأبعاد والمقاسات (إضافة جديدة) -->
+      <div class="border-b border-gray-800 pb-4">
+        <h3 class="text-xs font-black text-emerald-400 flex items-center gap-1.5 mb-3">
+          <i class="fas fa-expand-arrows-alt"></i> تعديل أبعاد ومقاس الصورة
+        </h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <!-- المقاسات الشائعة -->
+          <div>
+            <label class="text-[11px] font-semibold text-gray-400 block mb-1">مقاسات شائعة جاهزة:</label>
+            <select id="presetSelect" onchange="applyPreset(this.value)" class="w-full p-2 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+              <option value="original">الأبعاد الأصلية (بدون تغيير)</option>
+              <optgroup label="شبكات التواصل الاجتماعي">
+                <option value="1080x1080">منشور إنستقرام / مربع (1:1)</option>
+                <option value="1080x1920">ستوري / تيك توك / ريلز (9:16)</option>
+                <option value="1200x630">منشور فيسبوك / ويب أفقي</option>
+                <option value="1280x720">مصغرة يوتيوب / HD (16:9)</option>
+              </optgroup>
+              <optgroup label="المقاييس العامة والويب">
+                <option value="1920x1080">شاشة كاملة / FHD 1080p</option>
+                <option value="1280x720">جودة عادية / HD 720p</option>
+                <option value="640x480">مقاس صغير / SD 480p</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <!-- العرض والارتفاع يدوي -->
+          <div class="grid grid-cols-2 gap-2 md:col-span-2">
+            <div>
+              <label class="text-[11px] font-semibold text-gray-400 block mb-1">العرض (بكسل):</label>
+              <div class="relative">
+                <input type="number" id="customWidth" placeholder="الأصلي" oninput="handleDimensionInput('width')" class="w-full p-2 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+                <span class="absolute left-2.5 top-2.5 text-[9px] text-gray-600">px</span>
+              </div>
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-gray-400 block mb-1">الارتفاع (بكسل):</label>
+              <div class="relative">
+                <input type="number" id="customHeight" placeholder="الأصلي" oninput="handleDimensionInput('height')" class="w-full p-2 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+                <span class="absolute left-2.5 top-2.5 text-[9px] text-gray-600">px</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- خيار الحفاظ على نسبة الطول إلى العرض -->
+        <div class="flex items-center gap-2 mt-3 text-[11px] text-gray-400">
+          <input type="checkbox" id="keepRatio" checked class="accent-emerald-500 rounded border-gray-800 bg-gray-950">
+          <label for="keepRatio" class="cursor-pointer select-none">الحفاظ على نسبة الطول إلى العرض (تناسق الأبعاد تلقائياً)</label>
+        </div>
       </div>
 
-      <div>
-        <div class="flex justify-between items-center mb-2">
-          <label class="text-xs font-semibold text-gray-300">جودة الضغط:</label>
-          <span id="qualityLabel" class="text-xs font-bold text-emerald-400">80%</span>
+      <!-- الصيغة والجودة -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs font-bold text-gray-300 block mb-2">صيغة التحويل المطلوبة:</label>
+          <select id="targetFormat" onchange="reprocessAll()" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+            <option value="image/webp">WebP (أفضل ضغط وأعلى جودة - موصى بها)</option>
+            <option value="image/jpeg">JPG / JPEG (متوافق مع كل الأنظمة)</option>
+            <option value="image/png">PNG (جودة أصلية بدون فقدان للشفافية)</option>
+          </select>
         </div>
-        <input type="range" id="qualitySlider" min="10" max="100" value="80" step="5" oninput="updateQualityLabel(this.value)" onchange="reprocessAll()"
-               class="w-full accent-emerald-500 cursor-pointer">
+
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label class="text-xs font-bold text-gray-300">جودة الضغط الحجمي:</label>
+            <span id="qualityLabel" class="text-xs font-black text-emerald-400">85%</span>
+          </div>
+          <input type="range" id="qualitySlider" min="10" max="100" value="85" step="5" oninput="updateQualityLabel(this.value)" onchange="reprocessAll()"
+                 class="w-full accent-emerald-500 cursor-pointer">
+        </div>
       </div>
     </div>
 
@@ -91,9 +151,9 @@
 
     <!-- Batch Actions -->
     <div id="batchActions" class="hidden flex items-center justify-between">
-      <span id="filesCount" class="text-xs text-gray-400 font-medium"></span>
-      <button onclick="downloadAll()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-extrabold rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/20">
-        <i class="fas fa-download"></i> تحميل الكل مضغوطاً
+      <span id="filesCount" class="text-xs text-gray-400 font-semibold flex items-center gap-1"></span>
+      <button onclick="downloadAll()" class="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/10">
+        <i class="fas fa-file-zipper"></i> تحميل كافة الصور
       </button>
     </div>
 
@@ -103,12 +163,13 @@
   </main>
 
   <footer class="border-t border-gray-800/80 bg-gray-950 py-4 text-center text-xs text-gray-500">
-    جميع العمليات تتم داخل متصفحك مباشرة ولا يتم نقل أي صورة إلى الإنترنت.
+    جميع العمليات والتحويلات تتم محلياً داخل جهازك 100% حفاظاً على الخصوصية والبيانات.
   </footer>
 
   <script>
     let rawFiles = [];
     let processedImages = [];
+    let activeImageDimensions = { width: 0, height: 0 }; // لتخزين أبعاد أول صورة للحفاظ على النسبة
 
     function formatBytes(bytes) {
       if (!bytes || bytes === 0) return '0 B';
@@ -126,7 +187,67 @@
       const files = Array.from(event.target.files || []);
       if (!files.length) return;
       rawFiles = files;
-      processImages();
+      
+      // جلب أبعاد الصورة الأولى لوضعها كدليل عند تغيير الحجم
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          activeImageDimensions.width = img.width;
+          activeImageDimensions.height = img.height;
+          
+          // تحديث حقول المدخلات كمعاينة مبدئية
+          if(document.getElementById('presetSelect').value === 'original') {
+            document.getElementById('customWidth').value = img.width;
+            document.getElementById('customHeight').value = img.height;
+          }
+          processImages();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(files[0]);
+    }
+
+    function applyPreset(value) {
+      const wInput = document.getElementById('customWidth');
+      const hInput = document.getElementById('customHeight');
+
+      if (value === 'original') {
+        if(rawFiles.length) {
+          wInput.value = activeImageDimensions.width;
+          hInput.value = activeImageDimensions.height;
+        } else {
+          wInput.value = '';
+          hInput.value = '';
+        }
+      } else {
+        const [w, h] = value.split('x');
+        wInput.value = w;
+        hInput.value = h;
+      }
+      reprocessAll();
+    }
+
+    function handleDimensionInput(changedField) {
+      const wInput = document.getElementById('customWidth');
+      const hInput = document.getElementById('customHeight');
+      const keepRatio = document.getElementById('keepRatio').checked;
+
+      // إلغاء تفعيل اختيار الأبعاد الجاهزة لأن المستخدم يكتب يدوياً
+      document.getElementById('presetSelect').value = 'original';
+
+      if (keepRatio && activeImageDimensions.width && activeImageDimensions.height) {
+        const ratio = activeImageDimensions.width / activeImageDimensions.height;
+        if (changedField === 'width' && wInput.value) {
+          hInput.value = Math.round(Number(wInput.value) / ratio);
+        } else if (changedField === 'height' && hInput.value) {
+          wInput.value = Math.round(Number(hInput.value) * ratio);
+        }
+      }
+      
+      // تأخير المعالجة تلقائياً أثناء كتابة الأرقام
+      clearTimeout(window.resizeDebounce);
+      window.resizeDebounce = setTimeout(reprocessAll, 600);
     }
 
     async function reprocessAll() {
@@ -139,33 +260,36 @@
       const batchActions = document.getElementById('batchActions');
       const format = document.getElementById('targetFormat').value;
       const quality = parseFloat(document.getElementById('qualitySlider').value) / 100;
+      
+      const targetWidth = Number(document.getElementById('customWidth').value) || null;
+      const targetHeight = Number(document.getElementById('customHeight').value) || null;
 
       container.innerHTML = `
         <div class="text-center py-8 text-xs text-gray-400 flex flex-col items-center gap-2">
           <i class="fas fa-circle-notch fa-spin text-emerald-400 text-2xl"></i>
-          <span>جاري ضغط وتحويل الصور...</span>
+          <span>جاري تعديل أبعاد وضغط الصور...</span>
         </div>`;
 
       processedImages = [];
 
       for (let file of rawFiles) {
-        const compressed = await compressSingleImage(file, format, quality);
+        const compressed = await compressAndResizeImage(file, format, quality, targetWidth, targetHeight);
         if (compressed) {
           processedImages.push(compressed);
         }
       }
 
       if (processedImages.length === 0) {
-        container.innerHTML = `<div class="text-center py-6 text-xs text-red-400">تعذر معالجة الملفات المحددة، يرجى تجربة صور أخرى.</div>`;
+        container.innerHTML = `<div class="text-center py-6 text-xs text-red-400">فشل في معالجة الصور، يرجى التحقق من الملفات.</div>`;
         return;
       }
 
       renderResults();
       batchActions.classList.remove('hidden');
-      document.getElementById('filesCount').textContent = `تمت معالجة ${processedImages.length} صورة`;
+      document.getElementById('filesCount').innerHTML = `<i class="fas fa-check-circle text-emerald-400"></i> جاهز الآن ${processedImages.length} صور`;
     }
 
-    function compressSingleImage(file, format, quality) {
+    function compressAndResizeImage(file, format, quality, targetWidth, targetHeight) {
       return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -173,10 +297,19 @@
           img.onload = () => {
             try {
               const canvas = document.createElement('canvas');
-              canvas.width = img.width;
-              canvas.height = img.height;
+              
+              // تحديد أبعاد الصورة الجديدة
+              let newWidth = targetWidth || img.width;
+              let newHeight = targetHeight || img.height;
+
+              canvas.width = newWidth;
+              canvas.height = newHeight;
+              
               const ctx = canvas.getContext('2d');
-              ctx.drawImage(img, 0, 0);
+              // معالجة تنعيم الحواف عند تغيير المقاسات
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(img, 0, 0, newWidth, newHeight);
 
               const q = format === 'image/png' ? undefined : quality;
 
@@ -187,12 +320,16 @@
                 }
                 const ext = format === 'image/webp' ? 'webp' : (format === 'image/jpeg' ? 'jpg' : 'png');
                 const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-                const newFileName = `${baseName}-compressed.${ext}`;
+                const newFileName = `${baseName}-opti.${ext}`;
                 const savedPct = Math.round(((file.size - blob.size) / file.size) * 100);
 
                 resolve({
                   originalName: file.name,
                   originalSize: file.size,
+                  originalWidth: img.width,
+                  originalHeight: img.height,
+                  newWidth: newWidth,
+                  newHeight: newHeight,
                   newSize: blob.size,
                   savedPct: savedPct,
                   blob: blob,
@@ -221,13 +358,14 @@
             <img src="${item.url}" class="w-12 h-12 rounded-xl object-cover border border-gray-800 bg-gray-950 shrink-0">
             <div class="truncate">
               <p class="font-bold text-gray-200 truncate">${item.originalName}</p>
-              <div class="flex items-center gap-2 mt-1 text-[11px]">
+              <div class="flex flex-wrap items-center gap-2 mt-1 text-[11px]">
                 <span class="text-gray-400 line-through">${formatBytes(item.originalSize)}</span>
                 <i class="fas fa-arrow-left text-[9px] text-gray-500"></i>
                 <span class="text-emerald-400 font-extrabold">${formatBytes(item.newSize)}</span>
                 <span class="px-1.5 py-0.2 rounded text-[10px] font-bold ${item.savedPct >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
-                  ${item.savedPct >= 0 ? `وفرت ${item.savedPct}%` : 'زيادة بالحجم'}
+                  ${item.savedPct >= 0 ? `وفرت ${item.savedPct}%` : 'تضخم الحجم'}
                 </span>
+                <span class="text-gray-500 font-mono">(${item.originalWidth}x${item.originalHeight} ➔ ${item.newWidth}x${item.newHeight})</span>
               </div>
             </div>
           </div>
