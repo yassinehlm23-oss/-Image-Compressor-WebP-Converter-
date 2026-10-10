@@ -10,6 +10,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+  <!-- مكتبة JSZip الآمنة لإنشاء ملفات مضغوطة على الهاتف والحاسوب محلياً -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XAsorvSgoYh9Id3X879M/R5SInY+S60B8Z7U+u0B17Zp+8F+XpS+hP1m40QeX0ZId6C02Z4P/F+f9fL+3u1A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
   <!-- إعلان Adsterra رقم 1 (Popunder / Script) -->
   <script data-cfasync="false" src="https://bicea.org/14/ddeec1781bd6c9842deda4a337366a61"></script>
 </head>
@@ -44,7 +47,6 @@
     </div>
 
     <!-- Drop Zone -->
-    <!-- تم تفعيل دعم الكاميرا ومعرض الصور بدون تمييز عن طريق accept وسلوك المتصفح التلقائي -->
     <div id="dropZone" onclick="document.getElementById('fileInput').click()" 
          class="border-2 border-dashed border-gray-700 hover:border-emerald-500 bg-gray-900/40 rounded-3xl p-6 md:p-8 text-center cursor-pointer transition flex flex-col items-center gap-3 group">
       <input type="file" id="fileInput" accept="image/*" multiple class="hidden" onchange="handleFileSelect(event)">
@@ -107,7 +109,7 @@
 
         <!-- خيار الحفاظ على نسبة الطول إلى العرض -->
         <div class="flex items-center gap-2 mt-3 text-[11px] text-gray-400">
-          <input type="checkbox" id="keepRatio" checked class="accent-emerald-500 rounded border-gray-800 bg-gray-950">
+          <input type="checkbox" id="keepRatio" checked class="accent-emerald-500 rounded border-gray-800 bg-gray-950" onchange="handleRatioCheckboxChange()">
           <label for="keepRatio" class="cursor-pointer select-none">الحفاظ على نسبة الطول إلى العرض (تناسق الأبعاد تلقائياً)</label>
         </div>
       </div>
@@ -116,7 +118,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label class="text-xs font-bold text-gray-300 block mb-2">صيغة التحويل المطلوبة:</label>
-          <select id="targetFormat" onchange="reprocessAll()" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
+          <select id="targetFormat" onchange="handleFormatChange()" class="w-full p-2.5 bg-gray-950 border border-gray-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500">
             <option value="image/webp">WebP (أفضل ضغط وأعلى جودة - موصى بها)</option>
             <option value="image/jpeg">JPG / JPEG (متوافق مع كل الأنظمة)</option>
             <option value="image/png">PNG (جودة أصلية بدون فقدان للشفافية)</option>
@@ -153,7 +155,7 @@
     <!-- Batch Actions -->
     <div id="batchActions" class="hidden flex items-center justify-between">
       <span id="filesCount" class="text-xs text-gray-400 font-semibold flex items-center gap-1"></span>
-      <button onclick="downloadAll()" class="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/10">
+      <button id="downloadAllBtn" onclick="downloadAll()" class="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-emerald-500/10">
         <i class="fas fa-file-zipper"></i> تحميل كافة الصور
       </button>
     </div>
@@ -170,7 +172,18 @@
   <script>
     let rawFiles = [];
     let processedImages = [];
-    let activeImageDimensions = { width: 0, height: 0 }; 
+    let activeImageDimensions = { width: 0, height: 0, ratio: 1 };
+    let currentGenId = 0; // معرّف المعالجة لمنع تداخل العمليات المتزامنة
+
+    function esc(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
 
     function formatBytes(bytes) {
       if (!bytes || bytes === 0) return '0 B';
@@ -181,15 +194,58 @@
     }
 
     function updateQualityLabel(val) {
-      document.getElementById('qualityLabel').textContent = `${val}%`;
+      const format = document.getElementById('targetFormat').value;
+      if (format === 'image/png') {
+        document.getElementById('qualityLabel').textContent = `${val}% (غير مطبق على PNG)`;
+      } else {
+        document.getElementById('qualityLabel').textContent = `${val}%`;
+      }
+    }
+
+    function handleFormatChange() {
+      const format = document.getElementById('targetFormat').value;
+      const slider = document.getElementById('qualitySlider');
+      if (format === 'image/png') {
+        slider.disabled = true;
+        slider.classList.add('opacity-40', 'cursor-not-allowed');
+      } else {
+        slider.disabled = false;
+        slider.classList.remove('opacity-40', 'cursor-not-allowed');
+      }
+      updateQualityLabel(slider.value);
+      reprocessAll();
+    }
+
+    function handleRatioCheckboxChange() {
+      const keepRatio = document.getElementById('keepRatio').checked;
+      if (keepRatio && activeImageDimensions.width) {
+        // إعادة ملائمة الارتفاع بناءً على العرض الحالي بالنسبة الأصلية لضمان عدم حدوث تمديد مفاجئ
+        const wInput = document.getElementById('customWidth');
+        const hInput = document.getElementById('customHeight');
+        if (wInput.value) {
+          hInput.value = Math.round(Number(wInput.value) / activeImageDimensions.ratio) || '';
+        }
+      }
+      reprocessAll();
+    }
+
+    function clearRevokeUrls() {
+      processedImages.forEach(img => {
+        if (img && img.url) {
+          URL.revokeObjectURL(img.url);
+        }
+      });
+      processedImages = [];
     }
 
     function handleFileSelect(event) {
       const files = Array.from(event.target.files || []);
       if (!files.length) return;
+
+      // تصفير ملفات المعالجة السابقة مع تحرير الذاكرة
+      clearRevokeUrls();
       rawFiles = files;
       
-      // جلب أبعاد الصورة الأولى لوضعها كدليل عند تغيير الحجم بطريقة متوافقة تماماً مع الكاميرا
       const file = files[0];
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -197,6 +253,7 @@
         img.onload = () => {
           activeImageDimensions.width = img.width;
           activeImageDimensions.height = img.height;
+          activeImageDimensions.ratio = img.width / img.height;
           
           if(document.getElementById('presetSelect').value === 'original') {
             document.getElementById('customWidth').value = img.width;
@@ -205,11 +262,15 @@
           processImages();
         };
         img.onerror = () => {
-          // التعامل مع مشكلات قراءة الصور غير القياسية في بعض الهواتف
-          console.warn("تنبيه: تعذر قراءة المعاينة، سيتم التحويل مباشرة");
+          console.warn("تنبيه: تعذر قراءة المعاينة، سيتم التحويل والضغط مباشرة.");
+          activeImageDimensions = { width: 1920, height: 1080, ratio: 16/9 }; // افتراضي في حالة تعذر القراءة
           processImages();
         };
         img.src = e.target.result;
+      };
+      reader.onerror = () => {
+        console.error("فشل قراءة الملف.");
+        processImages();
       };
       reader.readAsDataURL(file);
     }
@@ -217,6 +278,7 @@
     function applyPreset(value) {
       const wInput = document.getElementById('customWidth');
       const hInput = document.getElementById('customHeight');
+      const keepRatio = document.getElementById('keepRatio').checked;
 
       if (value === 'original') {
         if(rawFiles.length && activeImageDimensions.width) {
@@ -227,9 +289,16 @@
           hInput.value = '';
         }
       } else {
-        const [w, h] = value.split('x');
-        wInput.value = w;
-        hInput.value = h;
+        const [targetW, targetH] = value.split('x').map(Number);
+        if (keepRatio && activeImageDimensions.width) {
+          // الحساب المتناسق: احتواء الصورة داخل الإبعاد (Contain) لكي لا يحدث تمديد أو تمدد بالارتفاع
+          const scale = Math.min(targetW / activeImageDimensions.width, targetH / activeImageDimensions.height);
+          wInput.value = Math.round(activeImageDimensions.width * scale);
+          hInput.value = Math.round(activeImageDimensions.height * scale);
+        } else {
+          wInput.value = targetW;
+          hInput.value = targetH;
+        }
       }
       reprocessAll();
     }
@@ -241,12 +310,14 @@
 
       document.getElementById('presetSelect').value = 'original';
 
+      const widthVal = Number(wInput.value);
+      const heightVal = Number(hInput.value);
+
       if (keepRatio && activeImageDimensions.width && activeImageDimensions.height) {
-        const ratio = activeImageDimensions.width / activeImageDimensions.height;
-        if (changedField === 'width' && wInput.value) {
-          hInput.value = Math.round(Number(wInput.value) / ratio);
-        } else if (changedField === 'height' && hInput.value) {
-          wInput.value = Math.round(Number(hInput.value) * ratio);
+        if (changedField === 'width' && widthVal) {
+          hInput.value = Math.round(widthVal / activeImageDimensions.ratio) || '';
+        } else if (changedField === 'height' && heightVal) {
+          wInput.value = Math.round(heightVal * activeImageDimensions.ratio) || '';
         }
       }
       
@@ -268,33 +339,72 @@
       const targetWidth = Number(document.getElementById('customWidth').value) || null;
       const targetHeight = Number(document.getElementById('customHeight').value) || null;
 
-      container.innerHTML = `
-        <div class="text-center py-8 text-xs text-gray-400 flex flex-col items-center gap-2">
-          <i class="fas fa-circle-notch fa-spin text-emerald-400 text-2xl"></i>
-          <span>جاري تعديل أبعاد وضغط الصور...</span>
-        </div>`;
+      currentGenId++;
+      const thisGenId = currentGenId;
 
-      processedImages = [];
+      container.innerHTML = '';
+      const loader = document.createElement('div');
+      loader.className = "text-center py-8 text-xs text-gray-400 flex flex-col items-center gap-2";
+      
+      const spinner = document.createElement('i');
+      spinner.className = "fas fa-circle-notch fa-spin text-emerald-400 text-2xl";
+      const statusText = document.createElement('span');
+      statusText.textContent = "جاري تعديل أبعاد وضغط الصور...";
+      
+      loader.appendChild(spinner);
+      loader.appendChild(statusText);
+      container.appendChild(loader);
+
+      // تفريغ روابط معالجات سابقة
+      clearRevokeUrls();
+      const localProcessed = [];
 
       for (let file of rawFiles) {
+        // التأكد من أن هذه الدورة ما زالت صالحة ولم يتم استبدالها بدورة جديدة
+        if (thisGenId !== currentGenId) return;
+
         const compressed = await compressAndResizeImage(file, format, quality, targetWidth, targetHeight);
         if (compressed) {
-          processedImages.push(compressed);
+          localProcessed.push(compressed);
         }
       }
 
+      if (thisGenId !== currentGenId) return;
+      container.innerHTML = '';
+
+      processedImages = localProcessed;
+
       if (processedImages.length === 0) {
-        container.innerHTML = `<div class="text-center py-6 text-xs text-red-400">يرجى التأكد من اختيار صورة صحيحة وإعادة المحاولة.</div>`;
+        const errorDiv = document.createElement('div');
+        errorDiv.className = "text-center py-6 text-xs text-red-400";
+        errorDiv.textContent = "يرجى التأكد من اختيار صورة صالحة وإعادة المحاولة.";
+        container.appendChild(errorDiv);
+        batchActions.classList.add('hidden');
         return;
       }
 
       renderResults();
       batchActions.classList.remove('hidden');
-      document.getElementById('filesCount').innerHTML = `<i class="fas fa-check-circle text-emerald-400"></i> جاهز الآن ${processedImages.length} صور`;
+      
+      const filesCountSpan = document.getElementById('filesCount');
+      filesCountSpan.innerHTML = '';
+      
+      const icon = document.createElement('i');
+      icon.className = "fas fa-check-circle text-emerald-400";
+      const countLabel = document.createElement('span');
+      countLabel.textContent = ` جاهز الآن ${processedImages.length} صور`;
+      
+      filesCountSpan.appendChild(icon);
+      filesCountSpan.appendChild(countLabel);
     }
 
     function compressAndResizeImage(file, format, quality, targetWidth, targetHeight) {
       return new Promise((resolve) => {
+        if (!file || !file.type.startsWith('image/')) {
+          resolve(null);
+          return;
+        }
+
         const reader = new FileReader();
         reader.onload = (e) => {
           const img = new Image();
@@ -305,7 +415,7 @@
               let newWidth = targetWidth || img.width;
               let newHeight = targetHeight || img.height;
 
-              // معالجة الصور ذات الدقة الكبيرة جداً لمنع انهيار متصفح الهاتف
+              // معالجة الصور ذات الدقة الكبيرة لمنع استنزاف ذاكرة الهاتف
               const maxDimension = 6500;
               if (newWidth > maxDimension || newHeight > maxDimension) {
                 const scalingFactor = maxDimension / Math.max(newWidth, newHeight);
@@ -313,10 +423,20 @@
                 newHeight = Math.round(newHeight * scalingFactor);
               }
 
+              if (newWidth <= 0) newWidth = 1;
+              if (newHeight <= 0) newHeight = 1;
+
               canvas.width = newWidth;
               canvas.height = newHeight;
               
               const ctx = canvas.getContext('2d');
+              
+              // ملء الخلفية الشفافة باللون الأبيض عند التحويل لـ JPEG
+              if (format === 'image/jpeg') {
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, newWidth, newHeight);
+              }
+
               ctx.imageSmoothingEnabled = true;
               ctx.imageSmoothingQuality = 'high';
               ctx.drawImage(img, 0, 0, newWidth, newHeight);
@@ -329,7 +449,7 @@
                   return;
                 }
                 const ext = format === 'image/webp' ? 'webp' : (format === 'image/jpeg' ? 'jpg' : 'png');
-                const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || "photo";
+                const baseName = file.name ? (file.name.substring(0, file.name.lastIndexOf('.')) || "photo") : "photo";
                 const newFileName = `${baseName}-opti.${ext}`;
                 const savedPct = Math.round(((file.size - blob.size) / file.size) * 100);
 
@@ -348,26 +468,11 @@
                 });
               }, format, q);
             } catch (err) {
-              console.error("حدث خطأ أثناء الرسم على Canvas: ", err);
+              console.error("خطأ Canvas:", err);
               resolve(null);
             }
           };
-          img.onerror = () => {
-            // محاولة المعالجة المباشرة للملف إذا تعذرت قراءته كـ Image في بعض هواتف Android/iOS
-            resolve({
-              originalName: file.name || "ملف الهاتف",
-              originalSize: file.size,
-              originalWidth: 0,
-              originalHeight: 0,
-              newWidth: targetWidth || 0,
-              newHeight: targetHeight || 0,
-              newSize: file.size,
-              savedPct: 0,
-              blob: file,
-              downloadName: file.name || "image.jpg",
-              url: URL.createObjectURL(file)
-            });
-          };
+          img.onerror = () => resolve(null);
           img.src = e.target.result;
         };
         reader.onerror = () => resolve(null);
@@ -377,40 +482,130 @@
 
     function renderResults() {
       const container = document.getElementById('resultsList');
-      container.innerHTML = processedImages.map((item) => `
-        <div class="bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div class="flex items-center gap-3 w-full sm:w-auto overflow-hidden">
-            <img src="${item.url}" class="w-12 h-12 rounded-xl object-cover border border-gray-800 bg-gray-950 shrink-0">
-            <div class="truncate w-full">
-              <p class="font-bold text-gray-200 truncate">${item.originalName}</p>
-              <div class="flex flex-wrap items-center gap-2 mt-1 text-[11px]">
-                <span class="text-gray-400 line-through">${formatBytes(item.originalSize)}</span>
-                <i class="fas fa-arrow-left text-[9px] text-gray-500"></i>
-                <span class="text-emerald-400 font-extrabold">${formatBytes(item.newSize)}</span>
-                <span class="px-1.5 py-0.2 rounded text-[10px] font-bold ${item.savedPct >= 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
-                  ${item.savedPct >= 0 ? `وفرت ${item.savedPct}%` : 'تضخم الحجم'}
-                </span>
-                ${item.originalWidth > 0 ? `<span class="text-gray-500 font-mono">(${item.originalWidth}x${item.originalHeight} ➔ ${item.newWidth}x${item.newHeight})</span>` : ''}
-              </div>
-            </div>
-          </div>
-          <a href="${item.url}" download="${item.downloadName}" 
-             class="w-full sm:w-auto text-center px-4 py-2 bg-gray-800 hover:bg-emerald-500 hover:text-black font-bold rounded-xl transition text-xs shrink-0">
-            <i class="fas fa-download ml-1"></i> تحميل
-          </a>
-        </div>
-      `).join('');
+      container.innerHTML = '';
+
+      processedImages.forEach((item) => {
+        const itemRow = document.createElement('div');
+        itemRow.className = "bg-gray-900 border border-gray-800 p-3 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs";
+
+        const previewContainer = document.createElement('div');
+        previewContainer.className = "flex items-center gap-3 w-full sm:w-auto overflow-hidden";
+
+        const imgPreview = document.createElement('img');
+        imgPreview.src = item.url;
+        imgPreview.className = "w-12 h-12 rounded-xl object-cover border border-gray-800 bg-gray-950 shrink-0";
+        previewContainer.appendChild(imgPreview);
+
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = "truncate w-full";
+
+        const namePara = document.createElement('p');
+        namePara.className = "font-bold text-gray-200 truncate";
+        namePara.textContent = item.originalName;
+        detailsDiv.appendChild(namePara);
+
+        const flexStats = document.createElement('div');
+        flexStats.className = "flex flex-wrap items-center gap-2 mt-1 text-[11px]";
+
+        const originalSizeSpan = document.createElement('span');
+        originalSizeSpan.className = "text-gray-400 line-through";
+        originalSizeSpan.textContent = formatBytes(item.originalSize);
+        flexStats.appendChild(originalSizeSpan);
+
+        const arrowIcon = document.createElement('i');
+        arrowIcon.className = "fas fa-arrow-left text-[9px] text-gray-500";
+        flexStats.appendChild(arrowIcon);
+
+        const newSizeSpan = document.createElement('span');
+        newSizeSpan.className = "text-emerald-400 font-extrabold";
+        newSizeSpan.textContent = formatBytes(item.newSize);
+        flexStats.appendChild(newSizeSpan);
+
+        const badgeSpan = document.createElement('span');
+        if (item.savedPct > 0) {
+          badgeSpan.className = "px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400";
+          badgeSpan.textContent = `وفرت ${item.savedPct}%`;
+        } else if (item.savedPct < 0) {
+          badgeSpan.className = "px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400";
+          badgeSpan.textContent = `زيادة بالحجم ${Math.abs(item.savedPct)}%`;
+        } else {
+          badgeSpan.className = "px-1.5 py-0.2 rounded text-[10px] font-bold bg-gray-800 text-gray-400";
+          badgeSpan.textContent = `بدون تغيير`;
+        }
+        flexStats.appendChild(badgeSpan);
+
+        if (item.originalWidth > 0) {
+          const dimSpan = document.createElement('span');
+          dimSpan.className = "text-gray-500 font-mono";
+          dimSpan.textContent = `(${item.originalWidth}x${item.originalHeight} ➔ ${item.newWidth}x${item.newHeight})`;
+          flexStats.appendChild(dimSpan);
+        }
+
+        detailsDiv.appendChild(flexStats);
+        previewContainer.appendChild(detailsDiv);
+
+        const dlBtn = document.createElement('a');
+        dlBtn.href = item.url;
+        dlBtn.download = item.downloadName;
+        dlBtn.className = "w-full sm:w-auto text-center px-4 py-2 bg-gray-800 hover:bg-emerald-500 hover:text-black font-bold rounded-xl transition text-xs shrink-0";
+        
+        const dlIcon = document.createElement('i');
+        dlIcon.className = "fas fa-download ml-1";
+        dlBtn.appendChild(dlIcon);
+        
+        const dlText = document.createTextNode(" تحميل");
+        dlBtn.appendChild(dlText);
+
+        itemRow.appendChild(previewContainer);
+        itemRow.appendChild(dlBtn);
+        container.appendChild(itemRow);
+      });
     }
 
-    function downloadAll() {
-      processedImages.forEach(item => {
-        const a = document.createElement('a');
-        a.href = item.url;
-        a.download = item.downloadName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      });
+    async function downloadAll() {
+      if (!processedImages || processedImages.length === 0) return;
+
+      const btn = document.getElementById('downloadAllBtn');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> جاري التعبئة...`;
+
+      try {
+        if (processedImages.length === 1) {
+          // إذا كان ملفاً واحداً يتم تحميله مباشرة بالطريقة القياسية
+          const item = processedImages[0];
+          const a = document.createElement('a');
+          a.href = item.url;
+          a.download = item.downloadName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          // استخدام JSZip لتوليد أرشيف ZIP حقيقي في المتصفح وتجنب تجميد التنزيلات المتزامنة على الجوال
+          const zip = new JSZip();
+          processedImages.forEach((item) => {
+            zip.file(item.downloadName, item.blob);
+          });
+
+          const content = await zip.generateAsync({ type: "blob" });
+          const zipUrl = URL.createObjectURL(content);
+
+          const a = document.createElement('a');
+          a.href = zipUrl;
+          a.download = "PicShrink-images.zip";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+
+          // تحرير رابط الـ zip لمنع تضخم الذاكرة
+          setTimeout(() => URL.revokeObjectURL(zipUrl), 15000);
+        }
+      } catch (err) {
+        console.error("فشل التنزيل المجمّع:", err);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
     }
   </script>
 
